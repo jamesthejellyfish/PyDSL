@@ -9,6 +9,7 @@ ENV TZ=America/Toronto
 RUN apt-get update && \
     apt-get install -y software-properties-common git build-essential ninja-build cmake clang-19 && \
     apt-get install -y python3-full python3-dev python3-pip && \
+    apt-get install unzip && \
     apt-get clean
 
 # create symlinks for clang and clang++
@@ -24,6 +25,7 @@ ENV PATH=/root/pydsl-venv/bin:$PATH
 COPY requirements.txt ./requirements.txt
 RUN pip install -r requirements.txt && \
     pip install pytest hatch && \
+    pip install torch triton && \
     rm requirements.txt
 
 # build LLVM and MLIR in a separate stage so that we avoid including the source code, etc in the final image
@@ -45,12 +47,21 @@ RUN mkdir -p llvm-project/build && \
         -DLLVM_ENABLE_PIC=ON \
         -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
         -DPython3_EXECUTABLE="$(which python3.12)" && \
-    ninja && \
+    ninja -j16 && \
     ninja install
 
 # final image with all the necessary components
 FROM base
 COPY --from=builder /root/llvm-build /root/llvm-build
+
+# get a copy of triton-adapter-opt to use with triton
+RUN pip download triton-ascend --python-version=3.11 --no-deps && \
+    unzip $(find -name "triton_ascend*.whl") -d extracted_wheel && \
+    mkdir triton_bin && \
+    cp extracted_wheel/triton/backends/huawei/triton-adapter-opt triton_bin/triton-adapter-opt
+RUN rm -rf extracted_wheel && rm -rf $(find -name "triton_ascend*.whl")
+ENV PATH=/root/triton_bin:$PATH
+
 
 ENV PYDSL_LLVM=/root/llvm-build
 ENV PATH=$PYDSL_LLVM/bin:$PATH
