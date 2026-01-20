@@ -14,6 +14,7 @@ from pydsl.frontend import compile
 from pydsl.macro import CallMacro, Compiled
 from pydsl.math import abs as p_abs
 from pydsl.protocols import ToMLIRBase
+from pydsl.arith import trunc
 from pydsl.type import (
     Bool,
     F32,
@@ -23,8 +24,10 @@ from pydsl.type import (
     Number,
     SInt8,
     SInt64,
+    SInt32,
     UInt8,
     UInt64,
+    UInt32,
     Tuple,
 )
 
@@ -149,6 +152,34 @@ def test_cast_F32_to_Floats():
         assert isinstance(f64, float)
         assert f32_isclose(i, f32)
         assert f32_isclose(i, f64)
+
+def test_cast_UInt64_to_UInt32():
+    @compile(globals())
+    def cast(a: UInt64) -> UInt32:
+        return trunc(a, UInt32)
+
+    # math.nan is not included because it's not close to itself
+    for i in [0, 128, 4294967295]:
+        i32 = cast(i)
+        assert isinstance(i32, int)
+        # assert isinstance(i64, int)
+        print(i32)
+        if i < 4294967296:
+            assert i - i32 == 0
+
+def test_cast_SInt64_to_SInt32():
+    @compile(globals())
+    def cast(a: SInt64) -> SInt32:
+        return trunc(a, SInt32)
+
+    # math.nan is not included because it's not close to itself
+    for i in [0, -0, -128, 128, 2147483647, -2147483648]:
+        i32 = cast(i)
+        assert isinstance(i32, int)
+        # assert isinstance(i64, int)
+        print(i32)
+        if -2147483648 <= i <= 2147483647:
+            assert i - i32 == 0
 
 
 def test_cast_F64_to_Floats():
@@ -482,6 +513,8 @@ if __name__ == "__main__":
     run(test_cast_SInt64_to_Floats)
     run(test_cast_F32_to_Floats)
     run(test_cast_F64_to_Floats)
+    run(test_cast_SInt64_to_SInt32)
+    run(test_cast_UInt64_to_UInt32)
     run(test_cast_Ints_to_Index)
     run(test_bad_cast_by_instance)
     run(test_UInt8_addition)

@@ -1097,6 +1097,39 @@ class MemRef(typing.Generic[DType, *Shape], UsesRMRD):
         rep = memref.cast(lower_single(result_type), lower_single(self))
         return result_type(rep)
 
+
+    def subview(
+        visitor: ToMLIRBase,
+        self: typing.Self,
+        *,
+        offsets: Evaluated = None,
+        sizes: Evaluated = None,
+        strides: Evaluated = None,
+        result_type: Evaluated = None
+    ) -> typing.Self
+        """
+        an explicit version of __getitem__ that allows for altering the result type,
+        either by specifying the offsets, sizes, and strides that should be modified,
+        or by explicitly passing in a MemRef type as the result_type
+        """
+
+        result_type = result_type if result_type is not None else self.calculate_subview_result(offsets, sizes, strides)
+        dynamic_offsets, static_offsets = get_dynamic_and_static_values(offsets if offsets is not None else tuple([0] * self.rank()))
+        dynamic_sizes, static_sizes = get_dynamic_and_static_values(sizes if sizes is not None else self.shape)
+        dynamic_strides, static_strides = get_dynamic_and_static_values(strides if strides is not None else tuple([1] * self.rank()))
+        rep = memref.SubViewOp(
+            lower_single(result_type),
+            lower_single(self),
+            dynamic_offsets,
+            dynamic_sizes,
+            dynamic_strides,
+            static_offsets,
+            static_sizes,
+            static_strides
+        )
+        return (result_type)(rep)
+
+
     def lower(self) -> tuple[Value]:
         return (self.value,)
 

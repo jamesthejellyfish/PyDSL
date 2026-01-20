@@ -12,13 +12,15 @@ from pydsl.memref import alloca, DYNAMIC, MemRef, MemRefFactory
 from pydsl.tensor import Tensor, TensorFactory
 from pydsl.type import F32, F64, SInt8, SInt32, SInt64, UInt8, UInt32, UInt64
 import pydsl.linalg as linalg
+from pydsl.linalg import _gen_elementwise_unary_macro_op
+from mlir.dialects.linalg.opdsl.lang.comprehension import UnaryFn
 from helper import compilation_failed_from, multi_arange, run
 
 TensorF64 = TensorFactory((DYNAMIC,), F64)
 MemRefF64 = MemRefFactory((DYNAMIC,), F64)
 TensorUI64 = TensorFactory((DYNAMIC,), UInt64)
 MemRefUI64 = MemRefFactory((DYNAMIC,), UInt64)
-
+exp_custom = _gen_elementwise_unary_macro_op(UnaryFn.exp)
 
 def make_input(scale, shift):
     return lambda dtype: multi_arange((100,), dtype) / scale + shift
@@ -51,6 +53,15 @@ def make_input(scale, shift):
     (linalg.tanh,   np.tanh,                  make_input(10, -5)),
     (linalg.erf,    np.vectorize(math.erf),   make_input(10, -5)),
 ])
+
+def test_linalg_exp_custom():
+    @compile()
+    def f(t1: TensorF64) -> TensorF64:
+        return exp_custom(t1)
+
+    n1 = multi_arange((100,), np.float64) / 10 - 5
+    assert np.allclose(f(n1.copy()), np.exp(n1))
+
 # fmt: on
 def test_linalg_unary(linalg_op, np_op, input_gen, Container, dtype, Type):
     def make_func():
@@ -526,6 +537,18 @@ def test_batch_matmul_no_init():
 
 
 if __name__ == "__main__":
+    run(test_linalg_exp)
+    run(test_linalg_exp_custom)
+    run(test_linalg_log)
+    run(test_linalg_abs)
+    run(test_linalg_ceil)
+    run(test_linalg_floor)
+    run(test_linalg_negf)
+    run(test_linalg_round)
+    run(test_linalg_sqrt)
+    run(test_linalg_rsqrt)
+    run(test_linalg_square)
+    run(test_linalg_tanh)
     run(test_multiple_unary)
     run(test_linalg_add)
     run(test_linalg_sub)

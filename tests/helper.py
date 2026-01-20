@@ -91,7 +91,6 @@ f32_edges = [
     -math.inf,
 ]
 
-
 class SequentialTokenConsumer:
     s: str
 

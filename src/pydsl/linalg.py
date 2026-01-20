@@ -2,7 +2,7 @@ from collections.abc import Callable, Iterable
 
 import mlir.dialects.linalg as mlir_linalg
 from mlir.dialects.linalg import DefinedOpCallable
-from mlir.dialects.linalg.opdsl.lang.comprehension import BinaryFn, TypeFn
+from mlir.dialects.linalg.opdsl.lang.comprehension import BinaryFn, TypeFn, UnaryFn
 from mlir.ir import InsertionPoint
 
 from pydsl.macro import CallMacro, Compiled, Evaluated
@@ -73,6 +73,32 @@ def _gen_elementwise_unary_macro(op: DefinedOpCallable) -> CallMacro:
 
     return op_macro
 
+# TODO: This allows for explicitly calling the linalg.elemwise_unary op,
+# Which is required downstream. Ideally this would be removable, or more
+# elegantly included
+def _gen_elementwise_unary_macro_op(
+        op: DefinedOpCallable
+) -> CallMacro:
+    @CallMacro.generate()
+    def op_macro(visitor: ToMLIRBase, x: Compiled) -> Tensor | MemRef:
+        # This check must be done first, otherwise x.shape, y.element_type fail
+        verify_memref_tensor_types(x)
+        # Get the respective fn and typefn from type_decision
+        # fn, typefn = type_decision(x, y, out)
+
+        rep = mlir_linalg.elemwise_unary(
+            lower_single(x),
+            outs=[lower_single(x)],
+            fun=op,
+        )
+
+        if isinstance(x, Tensor):
+            # A new tensor needs to be returned
+            return type(x)(rep)
+        else:
+            # MemRefs are modified in-place
+            return x
+    return op_macro
 
 # Define elementwise unary operators
 exp = _gen_elementwise_unary_macro(mlir_linalg.exp)
