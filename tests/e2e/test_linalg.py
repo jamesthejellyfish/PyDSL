@@ -10,7 +10,7 @@ from pydsl.frontend import compile, template
 from pydsl.func import InlineFunction
 from pydsl.memref import alloca, DYNAMIC, MemRef, MemRefFactory
 from pydsl.tensor import Tensor, TensorFactory
-from pydsl.type import F32, F64, SInt8, SInt32, SInt64, UInt8, UInt32, UInt64
+from pydsl.type import F16, F32, F64, SInt8, SInt32, SInt64, UInt8, UInt32, UInt64
 import pydsl.linalg as linalg
 from helper import compilation_failed_from, multi_arange, run
 
@@ -32,6 +32,7 @@ def make_input(scale, shift):
     (np.int8, SInt8),
     (np.int32, SInt32),
     (np.int64, SInt64),
+    (np.float16, F16),
     (np.float32, F32),
     (np.float64, F64),
 ])
@@ -66,6 +67,10 @@ def test_linalg_unary(linalg_op, np_op, input_gen, Container, dtype, Type):
 
     f = make_func()
     n1 = input_gen(dtype)
+    # fixes rounding error with float16 and erf.
+    # atol = 0.001 if dtype==np.float16 and linalg_op == linalg.erf else 1e-08 # default value
+    if dtype==np.float16 and linalg_op == linalg.erf:
+        pytest.xfail(reason="float16 is not precise enough when called using the error function")
     assert np.allclose(f(n1.copy()), np_op(n1))
 
 

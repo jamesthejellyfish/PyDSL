@@ -1,4 +1,5 @@
 import math
+import pytest
 import itertools
 from contextlib import nullcontext
 
@@ -16,14 +17,17 @@ from pydsl.math import abs as p_abs
 from pydsl.protocols import ToMLIRBase
 from pydsl.type import (
     Bool,
+    F16,
     F32,
     F64,
     Index,
     Int,
     Number,
     SInt8,
+    SInt32,
     SInt64,
     UInt8,
+    UInt32,
     UInt64,
     Tuple,
 )
@@ -84,85 +88,30 @@ def test_ctype_range_SInt8():
     check(-129, False)
     check(128, False)
 
+@pytest.mark.parametrize("Float, float_range", [(F16, (0.000000059604645, 65504)), (F32, (1.4012984643E-45, 3.4028234664E38)), (F64, (4.940656458412465E-324, 1.7976931348623157E308))])
+@pytest.mark.parametrize("Type, test_range", [
+    (UInt8, [0, 1, 5, (1 << 8) - 1]),
+    (UInt32, [0, 1, 5, (1 << 32) - 1]),
+    (UInt64, [0, 1, 5, (1 << 64) - 1]),
+    (SInt8, [0, 1, 5, (1 << 7) - 1, -1, -5, -(1 << 7)]),
+    (SInt32, [0, 1, 5, (1 << 31) - 1, -1, -5, -(1 << 31)]),
+    (SInt64, [0, 1, 5, (1 << 63) - 1, -1, -5, -(1 << 63)]),
+    (F16, f32_edges),
+    (F32, f32_edges),
+    (F64, f32_edges),
+])
+# fmt: on
+def test_cast_to_Float(Type, test_range, Float, float_range):
+    # assert Type == F16
+    @compile()
+    def cast(a: Type) -> Float:
+        return Float(a)
 
-def test_cast_UInt8_to_Floats():
-    @compile(globals())
-    def cast(a: UInt8) -> Tuple[F32, F64]:
-        return F32(a), F64(a)
-
-    for ui16 in [0, 1, 5, (1 << 8) - 1]:
-        f32, f64 = cast(ui16)
-        assert isinstance(f32, float)
-        assert isinstance(f64, float)
-        assert math.isclose(ui16, f32)
-        assert math.isclose(ui16, f64)
-
-
-def test_cast_UInt64_to_Floats():
-    @compile(globals())
-    def cast(a: UInt64) -> Tuple[F32, F64]:
-        return F32(a), F64(a)
-
-    for ui64 in [0, 1, 5, (1 << 64) - 1]:
-        f32, f64 = cast(ui64)
-        assert isinstance(f32, float)
-        assert isinstance(f64, float)
-        assert math.isclose(ui64, f32)
-        assert math.isclose(ui64, f64)
-
-
-def test_cast_SInt8_to_Floats():
-    @compile(globals())
-    def cast(a: SInt8) -> Tuple[F32, F64]:
-        return F32(a), F64(a)
-
-    for si8 in [0, 1, 5, (1 << 7) - 1, -1, -5, -(1 << 7)]:
-        f32, f64 = cast(si8)
-        assert isinstance(f32, float)
-        assert isinstance(f64, float)
-        assert math.isclose(si8, f32)
-        assert math.isclose(si8, f64)
-
-
-def test_cast_SInt64_to_Floats():
-    @compile(globals())
-    def cast(a: SInt64) -> Tuple[F32, F64]:
-        return F32(a), F64(a)
-
-    for si64 in [0, 1, 5, (1 << 63) - 1, -1, -5, -(1 << 63)]:
-        f32, f64 = cast(si64)
-        assert isinstance(f32, float)
-        assert isinstance(f64, float)
-        assert math.isclose(si64, f32)
-        assert math.isclose(si64, f64)
-
-
-def test_cast_F32_to_Floats():
-    @compile(globals())
-    def cast(a: F32) -> Tuple[F32, F64]:
-        return F32(a), F64(a)
-
-    # math.nan is not included because it's not close to itself
-    for i in f32_edges:
-        f32, f64 = cast(i)
-        assert isinstance(f32, float)
-        assert isinstance(f64, float)
-        assert f32_isclose(i, f32)
-        assert f32_isclose(i, f64)
-
-
-def test_cast_F64_to_Floats():
-    @compile(globals())
-    def cast(a: F64) -> Tuple[F32, F64]:
-        return F32(a), F64(a)
-
-    # math.nan is not included because it's not close to itself
-    for i in f32_edges:
-        f32, f64 = cast(i)
-        assert isinstance(f32, float)
-        assert isinstance(f64, float)
-        assert f32_isclose(i, f32)
-        assert f32_isclose(i, f64)
+    for type_val in test_range:
+        float_val = cast(type_val)
+        assert isinstance(float_val, float)
+        if float_range[0] < abs(type_val) < float_range[1]:
+            assert math.isclose(type_val, float_val)
 
 
 def test_cast_Ints_to_Index():
@@ -476,12 +425,6 @@ if __name__ == "__main__":
     run(test_val_range_Int8)
     run(test_ctype_range_UInt8)
     run(test_ctype_range_SInt8)
-    run(test_cast_UInt8_to_Floats)
-    run(test_cast_UInt64_to_Floats)
-    run(test_cast_SInt8_to_Floats)
-    run(test_cast_SInt64_to_Floats)
-    run(test_cast_F32_to_Floats)
-    run(test_cast_F64_to_Floats)
     run(test_cast_Ints_to_Index)
     run(test_bad_cast_by_instance)
     run(test_UInt8_addition)

@@ -307,9 +307,13 @@ class UsesRMRD:
         )
         byte_strides = [s * element_size for s in rmd.strides]
         # Load as a 1D array first, then apply the correct shape and strides
-        flat_arr = np.ctypeslib.as_array(
+        if issubclass(element_ctype, ctypes.Structure):
+            flat_arr_1 = ctypes.cast(ptr, POINTER(element_ctype))
+            flat_arr = np.array([flat_arr_1[i].get_val() for i in range(max_size)], dtype=element_ctype.dtype)
+        else:
+            flat_arr = np.ctypeslib.as_array(
             ctypes.cast(ptr, POINTER(element_ctype)), shape=(max_size,)
-        )
+            )   
         arr = np.lib.stride_tricks.as_strided(
             flat_arr, shape=rmd.shape, strides=byte_strides
         )
@@ -365,10 +369,10 @@ class UsesRMRD:
                 f"The element type of a {cls.__qualname__} cannot be "
                 f"composite CType"
             )
-
-        if (actual_dt := np.ctypeslib.as_ctypes_type(a.dtype)) is not (
+        
+        if not issubclass(ndtype[0], ctypes.Structure) and ((actual_dt := np.ctypeslib.as_ctypes_type(a.dtype)) is not (
             expected_dt := ndtype[0]
-        ):
+        )):
             raise TypeError(
                 f"{cls.__qualname__} expects ndarray with dtype "
                 f"{expected_dt.__qualname__}, got {actual_dt.__qualname__}"

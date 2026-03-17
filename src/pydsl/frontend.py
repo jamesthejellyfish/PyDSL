@@ -30,7 +30,7 @@ from typing import (
 
 from pydsl.compiler import CompilationError, Dialect, Module, Source, ToMLIR
 from pydsl.func import Function
-from pydsl.type import Tuple
+from pydsl.type import Tuple, CTypeStruct
 
 import numpy as np
 
@@ -205,7 +205,7 @@ def CTypeTree_from_Structure(ct: CTypeTreeType, s: Structure) -> CTypeTree:
 
         val = (
             CTypeTree_from_Structure(t, getattr(s, sname))
-            if issubclass(st, Structure)
+            if issubclass(st, Structure) and not issubclass(st, CTypeStruct)
             else getattr(s, sname)
         )
 
@@ -541,15 +541,16 @@ class CTarget(CompilationTarget):
             self.get_return_ctypes(f)
         )
         # all structs are passed by pointer
-        if issubclass(ret_struct, Structure):
+        if issubclass(ret_struct, Structure) and not issubclass(ret_struct, CTypeStruct):
             ret_struct = POINTER(ret_struct)
+        
 
         args_struct: list[type[Structure] | type] = [
             CTypeTreeType_to_Structure(t) for t in self.get_args_ctypes(f)
         ]
         # all structs are passed by pointer
         args_struct = [
-            POINTER(t) if issubclass(t, Structure) else t for t in args_struct
+            POINTER(t) if (issubclass(t, Structure) and not issubclass(t, CTypeStruct)) else t for t in args_struct
         ]
 
         """
@@ -810,6 +811,7 @@ class CTarget(CompilationTarget):
             if issubclass(f.return_type, Tuple):
                 retval_ct = (retval_ct,)
 
+            print(retval_ct)
             return self.val_from_CType(arg_cont, f.return_type, retval_ct)
 
         # instantiate a structure return type, which by LLVM calling

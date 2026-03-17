@@ -13,6 +13,7 @@ from enum import Enum, auto
 from functools import cache, reduce
 from math import log2
 from typing import TYPE_CHECKING, Any, Protocol, Self, runtime_checkable
+import numpy as np
 
 import mlir.dialects.index as mlir_index
 import mlir.ir as mlir
@@ -38,6 +39,27 @@ if TYPE_CHECKING:
     # This is for imports for type hinting purposes only and which can result
     # in cyclic imports.
     from pydsl.frontend import CTypeTree
+
+class CTypeStruct(ctypes.Structure):
+    _fields = []
+    dtype = None
+
+    def set_val(self, f):
+        pass
+
+    def get_val(self):
+        pass
+
+class FP16Struct(CTypeStruct):
+    _fields_ = [("value", ctypes.c_uint16)]  # store raw bits
+    dtype = np.float16
+
+    def get_val(self) -> np.float16:
+        """Retrieve the stored FP16 as a Python float."""
+        return np.frombuffer(ctypes.c_uint16(self.value), dtype=np.float16)[0]
+    
+    def __float__(self):
+        return float(self.get_val())   
 
 
 def iscompiled(x: Any) -> bool:
@@ -782,6 +804,7 @@ class Float(metaclass=Supportable):
     @classmethod
     def CType(cls) -> tuple[type]:
         ctypes_map = {
+            16: FP16Struct,
             32: ctypes.c_float,
             64: ctypes.c_double,
             80: ctypes.c_longdouble,
